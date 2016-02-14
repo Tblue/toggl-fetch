@@ -89,6 +89,13 @@ class Toggl(_APIBase):
     def get_workspaces(self):
         return self._do_get("workspaces")
 
+    def get_workspace_by_name(self, name):
+        for workspace in self.get_workspaces():
+            if workspace["name"] == name:
+                return workspace["id"]
+
+        return None
+
 
 class TogglReports(_APIBase):
     API_BASE_URL = "https://toggl.com/reports/api/v2/"
