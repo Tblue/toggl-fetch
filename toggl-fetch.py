@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 
+import os.path
 import datetime
 import json
 import logging
+import pprint
 import re
 import sys
 from argparse import ArgumentParser, ArgumentTypeError
+from xdg import BaseDirectory
 
 import dateutil.parser
 import dateutil.tz
@@ -34,10 +37,8 @@ def get_argparser():
             "-s",
             "--start-date",
             type=parse_date,
-            default=datetime.datetime.now(dateutil.tz.gettz()) - datetime.timedelta(weeks=4),
             help="First day to include in report, inclusive. Defaults to 4 weeks ago (or the last time this program "
-                 "was "
-                 "used plus one day, if possible)."
+                 "was used plus one day, if possible)."
     )
     argparser.add_argument(
             "-e",
@@ -68,11 +69,54 @@ def get_argparser():
     return argparser
 
 
+# XXX: Locking?
+def get_last_end_date(workspace_id):
+    # See http://stackoverflow.com/q/1450957
+    workspace_id = str(workspace_id)
+
+    for dir in BaseDirectory.load_data_paths("toggl-fetch"):
+        path = os.path.join(dir, "end_dates.json")
+
+        if not os.path.isfile(path):
+            continue
+
+        with open(path, "r") as fh:
+            data = json.load(fh)
+
+        if workspace_id in data:
+            return dateutil.parser.parse(data[workspace_id])
+
+        # Else try the next data file.
+
+    # No data files yet.
+    return None
+
+
+# XXX: Locking?
+def set_last_end_date(workspace_id, date):
+    # See http://stackoverflow.com/q/1450957
+    workspace_id = str(workspace_id)
+
+    path = os.path.join(
+        BaseDirectory.save_data_path("toggl-fetch"),
+        "end_dates.json"
+    )
+
+    if os.path.exists(path):
+        # Load existing data so that we preserve it.
+        with open(path, "r") as fh:
+            data = json.load(fh)
+    else:
+        data = {}
+
+    data[workspace_id] = date.isoformat()
+
+    with open(path, "w") as fh:
+        json.dump(data, fh)
+
+
 logging.basicConfig(level=logging.INFO)
 args = get_argparser().parse_args()
-
-logging.info("Start date: %s", args.start_date)
-logging.info("End date: %s", args.end_date)
 
 api = toggl.Toggl(args.api_token)
 reports = toggl.TogglReports(args.api_token)
@@ -91,10 +135,28 @@ if not re.fullmatch(r"[0-9]+", args.workspace):
     logging.info("Resolved workspace name `%s' to ID %d.", args.workspace, resolved_workspace)
     args.workspace = resolved_workspace
 
+if args.start_date is None:
+    try:
+        args.start_date = get_last_end_date(args.workspace)
+    except (OSError, json.JSONDecodeError, ValueError, OverflowError) as e:
+        logging.error("XDG data file for end dates is corrupt: %s", e)
+        sys.exit(6)
+
+    if args.start_date is None:
+        # No last end date stored, use default of "4 weeks ago":
+        args.start_date = datetime.datetime.now(dateutil.tz.gettz()) - datetime.timedelta(weeks=4)
+
+logging.info("Start date: %s", args.start_date)
+logging.info("End date: %s", args.end_date)
+
 output_path = args.output.format(
         start_date=args.start_date,
         end_date=args.end_date
 )
+
+if os.path.exists(output_path):
+    logging.error("Output file `%s' exists, not overwriting it.", output_path)
+    sys.exit(8)
 
 try:
     with open(output_path, "wb") as fh:
@@ -112,3 +174,9 @@ except (toggl.APIError, json.JSONDecodeError, requests.RequestException) as e:
 except IOError as e:
     logging.error("Cannot write to output file `%s': %s", output_path, e)
     sys.exit(5)
+
+try:
+    set_last_end_date(args.workspace, args.end_date)
+except (OSError, json.JSONDecodeError) as e:
+    logging.error("Cannot store end date: %s", e)
+    sys.exit(7)
