@@ -1,11 +1,10 @@
 import json
-
 import logging
+import time
+from abc import *
+
 import requests
 import requests.exceptions
-import time
-
-from abc import *
 
 
 USER_AGENT = "toggl-fetch/0.1 (tilman+toggldev@ax86.net)"
@@ -129,7 +128,7 @@ class TogglReports(_APIBase):
             response.raise_for_status()
         else:
             raise APIError(
-                "Error #{error[code]}: {error[message]} - {error[tip]}".format(error=data["error"])
+                    "Error #{error[code]}: {error[message]} - {error[tip]}".format(error=data["error"])
             )
 
     def test_400(self):
