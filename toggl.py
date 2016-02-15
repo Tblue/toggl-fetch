@@ -85,14 +85,13 @@ class Toggl(_APIBase):
 
         response.raise_for_status()
 
-    def get_workspaces(self):
-        return self._do_get("workspaces")
+    @staticmethod
+    def get_workspace_by_name_from_user_info(user_info, workspace_name):
+        for workspace in user_info["data"]["workspaces"]:
+            if workspace["name"] == workspace_name:
+                return workspace
 
-    def get_workspace_by_name(self, name):
-        for workspace in self.get_workspaces():
-            if workspace["name"] == name:
-                return workspace["id"]
-
+        # Not found
         return None
 
     def get_user_info(self):
