@@ -159,12 +159,18 @@ check_argparser_arguments(args)
 api = toggl.Toggl(args.api_token)
 reports = toggl.TogglReports(args.api_token)
 
+try:
+    user_info = api.get_user_info()
+except (toggl.APIError, json.JSONDecodeError, requests.RequestException) as e:
+    logging.error("Cannot retrieve user information: %s", e)
+    sys.exit(3)
+
 if not re.fullmatch(r"[0-9]+", args.workspace):
-    try:
-        resolved_workspace = api.get_workspace_by_name(args.workspace)
-    except (toggl.APIError, json.JSONDecodeError, requests.RequestException) as e:
-        logging.error("Cannot retrieve workspaces: %s", e)
-        sys.exit(2)
+    resolved_workspace = None
+    for workspace in user_info["data"]["workspaces"]:
+        if workspace["name"] == args.workspace:
+            resolved_workspace = workspace["id"]
+            break
 
     if resolved_workspace is None:
         logging.error("Cannot find a workspace with that name: %s", args.workspace)
@@ -172,6 +178,13 @@ if not re.fullmatch(r"[0-9]+", args.workspace):
 
     logging.info("Resolved workspace name `%s' to ID %d.", args.workspace, resolved_workspace)
     args.workspace = resolved_workspace
+
+user_timezone = dateutil.tz.gettz(user_info["data"]["timezone"])
+if user_timezone is None:
+    logging.error("Unknown timezone: %s", user_info["data"]["timezone"])
+    sys.exit(3)
+
+logging.info("User timezone: %s", user_timezone)
 
 if args.start_date is None:
     try:
@@ -203,8 +216,8 @@ try:
         fh.write(
                 reports.get_summary(
                         workspace_id=args.workspace,
-                        since=args.start_date.astimezone(datetime.timezone.utc).date().isoformat(),
-                        until=args.end_date.astimezone(datetime.timezone.utc).date().isoformat(),
+                        since=args.start_date.astimezone(user_timezone).date().isoformat(),
+                        until=args.end_date.astimezone(user_timezone).date().isoformat(),
                         order_field="title",
                         as_pdf=True
                 )

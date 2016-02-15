@@ -95,6 +95,9 @@ class Toggl(_APIBase):
 
         return None
 
+    def get_user_info(self):
+        return self._do_get("me", with_related_data="true")
+
 
 class TogglReports(_APIBase):
     API_BASE_URL = "https://toggl.com/reports/api/v2/"
