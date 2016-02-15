@@ -1,20 +1,18 @@
 #!/usr/bin/env python
 
-import os.path
+import configparser
 import datetime
 import json
 import logging
-import pprint
+import os.path
 import re
 import sys
 from argparse import ArgumentParser, ArgumentTypeError
 
-import configparser
-from xdg import BaseDirectory
-
 import dateutil.parser
 import dateutil.tz
 import requests
+from xdg import BaseDirectory
 
 import toggl
 
@@ -217,6 +215,8 @@ except (toggl.APIError, json.JSONDecodeError, requests.RequestException) as e:
 except IOError as e:
     logging.error("Cannot write to output file `%s': %s", output_path, e)
     sys.exit(5)
+
+logging.info("Output written to file: %s", output_path)
 
 try:
     set_last_end_date(args.workspace, args.end_date)
