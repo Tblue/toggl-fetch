@@ -126,6 +126,7 @@ def set_last_end_date(workspace_id, date):
 
     data[workspace_id] = date.isoformat()
 
+    # XXX: Write safely (write + rename)
     with open(path, "w") as fh:
         json.dump(data, fh)
 
