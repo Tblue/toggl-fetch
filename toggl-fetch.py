@@ -166,6 +166,20 @@ def check_argparser_arguments(args):
         sys.exit(1)
 
 
+def determine_end_date(workspace_id):
+    # Try to retrieve the last used end date for the workspace:
+    start_date = get_last_end_date(workspace_id)
+
+    if start_date is None:
+        # No last end date stored, use default of "4 weeks ago":
+        start_date = datetime.datetime.now(dateutil.tz.gettz()) - datetime.timedelta(weeks=4)
+    else:
+        # We know the last used end date; add one day to that date and use the result as the start date.
+        start_date += datetime.timedelta(1)
+
+    return start_date
+
+
 # Set up logging:
 logging.basicConfig(level=logging.INFO)
 
@@ -216,21 +230,13 @@ if user_timezone is None:
 
 logging.info("User timezone: %s", user_timezone)
 
-# If no start date was specified, then either use the last used end date for this workspace or -- if we don't have that
-# information -- just use "4 weeks ago" as the start date.
+# If no start date was specified, then try to determine a suitable default automatically.
 if args.start_date is None:
     try:
-        args.start_date = get_last_end_date(args.workspace)
+        args.start_date = determine_end_date(args.workspace)
     except (OSError, json.JSONDecodeError, ValueError, OverflowError) as e:
-        logging.error("XDG data file for end dates is corrupt: %s", e)
+        logging.error("Cannot determine start date for workspace: %s", e)
         sys.exit(6)
-
-    if args.start_date is None:
-        # No last end date stored, use default of "4 weeks ago":
-        args.start_date = datetime.datetime.now(dateutil.tz.gettz()) - datetime.timedelta(weeks=4)
-    else:
-        # We know the last used end date; add one day to that date and use the result as the start date.
-        args.start_date = args.start_date + datetime.timedelta(1)
 
 logging.info("Start date: %s", args.start_date)
 logging.info("End date: %s", args.end_date)
@@ -248,16 +254,16 @@ if not args.force and os.path.exists(output_path):
 
 # Download and save the generated PDF file.
 try:
+    pdf_data = reports.get_summary(
+            workspace_id=args.workspace,
+            since=args.start_date.astimezone(user_timezone).date().isoformat(),
+            until=args.end_date.astimezone(user_timezone).date().isoformat(),
+            order_field="title",
+            as_pdf=True
+    )
+
     with open(output_path, "wb") as fh:
-        fh.write(
-                reports.get_summary(
-                        workspace_id=args.workspace,
-                        since=args.start_date.astimezone(user_timezone).date().isoformat(),
-                        until=args.end_date.astimezone(user_timezone).date().isoformat(),
-                        order_field="title",
-                        as_pdf=True
-                )
-        )
+        fh.write(pdf_data)
 except (toggl.APIError, json.JSONDecodeError, requests.RequestException) as e:
     logging.error("Cannot retrieve summary report: %s", e)
     sys.exit(4)
