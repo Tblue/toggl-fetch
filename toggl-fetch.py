@@ -89,8 +89,8 @@ def get_last_end_date(workspace_id):
     # See http://stackoverflow.com/q/1450957
     workspace_id = str(workspace_id)
 
-    for dir in BaseDirectory.load_data_paths(APP_SHORTNAME):
-        path = os.path.join(dir, END_DATES_FILENAME)
+    for data_dir in BaseDirectory.load_data_paths(APP_SHORTNAME):
+        path = os.path.join(data_dir, END_DATES_FILENAME)
 
         if not os.path.isfile(path):
             continue
@@ -101,7 +101,7 @@ def get_last_end_date(workspace_id):
         if workspace_id in data:
             return dateutil.parser.parse(data[workspace_id])
 
-        # Else try the next data file.
+            # Else try the next data file.
 
     # No data files yet.
     return None
@@ -113,8 +113,8 @@ def set_last_end_date(workspace_id, date):
     workspace_id = str(workspace_id)
 
     path = os.path.join(
-        BaseDirectory.save_data_path(APP_SHORTNAME),
-        END_DATES_FILENAME
+            BaseDirectory.save_data_path(APP_SHORTNAME),
+            END_DATES_FILENAME
     )
 
     if os.path.exists(path):
@@ -181,103 +181,111 @@ def determine_end_date(workspace_id):
     return start_date
 
 
-# Set up logging:
-logging.basicConfig(level=logging.INFO)
+def main():
+    # Set up logging:
+    logging.basicConfig(level=logging.INFO)
 
-# Now prepare to parse the config file and the command line arguments.
-argparser = get_argparser()
+    # Now prepare to parse the config file and the command line arguments.
+    argparser = get_argparser()
 
-try:
-    # Read the config file -- this sets defaults for the command line argument parser.
-    set_argparser_defaults_from_config(argparser)
-except (configparser.Error, OSError) as e:
-    logging.error("Could not load configuration file: %s", e)
-    sys.exit(9)
+    try:
+        # Read the config file -- this sets defaults for the command line argument parser.
+        set_argparser_defaults_from_config(argparser)
+    except (configparser.Error, OSError) as e:
+        logging.error("Could not load configuration file: %s", e)
+        sys.exit(9)
 
-# Now parse the command line arguments. These will override defaults set in the config file.
-args = argparser.parse_args()
+    # Now parse the command line arguments. These will override defaults set in the config file.
+    args = argparser.parse_args()
 
-# Certain command line arguments are only required if they are not already specified in the config file.
-# Check for those.
-check_argparser_arguments(args)
+    # Certain command line arguments are only required if they are not already specified in the config file.
+    # Check for those.
+    check_argparser_arguments(args)
 
-# Set up Toggl.com API wrappers
-api = toggl.Toggl(args.api_token)
-reports = toggl.TogglReports(args.api_token)
+    # Set up Toggl.com API wrappers
+    api = toggl.Toggl(args.api_token)
+    reports = toggl.TogglReports(args.api_token)
 
-# We need to retrieve the user info from Toggl to determine the correct timezone for the date parameters.
-try:
-    user_info = api.get_user_info()
-except (toggl.APIError, json.JSONDecodeError, requests.RequestException) as e:
-    logging.error("Cannot retrieve user information: %s", e)
-    sys.exit(3)
-
-# If the user specified a workspace name and not an ID, then try to find a workspace with that name and use its ID.
-if not re.fullmatch(r"[0-9]+", args.workspace):
-    resolved_workspace = api.get_workspace_by_name_from_user_info(user_info, args.workspace)
-
-    if resolved_workspace is None:
-        logging.error("Cannot find a workspace with that name: %s", args.workspace)
+    # We need to retrieve the user info from Toggl to determine the correct timezone for the date parameters.
+    try:
+        user_info = api.get_user_info()
+    except (toggl.APIError, json.JSONDecodeError, requests.RequestException) as e:
+        logging.error("Cannot retrieve user information: %s", e)
         sys.exit(3)
 
-    logging.info("Resolved workspace name `%s' to ID %d.", args.workspace, resolved_workspace["id"])
-    args.workspace = resolved_workspace["id"]
+    # If the user specified a workspace name and not an ID, then try to find a workspace with that name and use its ID.
+    if not re.fullmatch(r"[0-9]+", args.workspace):
+        resolved_workspace = api.get_workspace_by_name_from_user_info(user_info, args.workspace)
 
-# Determine the timezone of the Toggl user
-user_timezone = dateutil.tz.gettz(user_info["data"]["timezone"])
-if user_timezone is None:
-    logging.error("Unknown timezone: %s", user_info["data"]["timezone"])
-    sys.exit(3)
+        if resolved_workspace is None:
+            logging.error("Cannot find a workspace with that name: %s", args.workspace)
+            sys.exit(3)
 
-logging.info("User timezone: %s", user_timezone)
+        logging.info("Resolved workspace name `%s' to ID %d.", args.workspace, resolved_workspace["id"])
+        args.workspace = resolved_workspace["id"]
 
-# If no start date was specified, then try to determine a suitable default automatically.
-if args.start_date is None:
-    try:
-        args.start_date = determine_end_date(args.workspace)
-    except (OSError, json.JSONDecodeError, ValueError, OverflowError) as e:
-        logging.error("Cannot determine start date for workspace: %s", e)
-        sys.exit(6)
+    # Determine the timezone of the Toggl user
+    user_timezone = dateutil.tz.gettz(user_info["data"]["timezone"])
+    if user_timezone is None:
+        logging.error("Unknown timezone: %s", user_info["data"]["timezone"])
+        sys.exit(3)
 
-logging.info("Start date: %s", args.start_date)
-logging.info("End date: %s", args.end_date)
+    logging.info("User timezone: %s", user_timezone)
 
-# Where should the downloaded PDF file go?
-output_path = args.output.format(
-        start_date=args.start_date,
-        end_date=args.end_date
-)
+    # If no start date was specified, then try to determine a suitable default automatically.
+    if args.start_date is None:
+        try:
+            args.start_date = determine_end_date(args.workspace)
+        except (OSError, json.JSONDecodeError, ValueError, OverflowError) as e:
+            logging.error("Cannot determine start date for workspace: %s", e)
+            sys.exit(6)
 
-# Refuse to overwrite the output file if it exists (unless --force is given).
-if not args.force and os.path.exists(output_path):
-    logging.error("Output file `%s' exists, not overwriting it.", output_path)
-    sys.exit(8)
+    logging.info("Start date: %s", args.start_date)
+    logging.info("End date: %s", args.end_date)
 
-# Download and save the generated PDF file.
-try:
-    pdf_data = reports.get_summary(
-            workspace_id=args.workspace,
-            since=args.start_date.astimezone(user_timezone).date().isoformat(),
-            until=args.end_date.astimezone(user_timezone).date().isoformat(),
-            order_field="title",
-            as_pdf=True
+    # Where should the downloaded PDF file go?
+    output_path = args.output.format(
+            start_date=args.start_date,
+            end_date=args.end_date
     )
 
-    with open(output_path, "wb") as fh:
-        fh.write(pdf_data)
-except (toggl.APIError, json.JSONDecodeError, requests.RequestException) as e:
-    logging.error("Cannot retrieve summary report: %s", e)
-    sys.exit(4)
-except IOError as e:
-    logging.error("Cannot write to output file `%s': %s", output_path, e)
-    sys.exit(5)
+    # Refuse to overwrite the output file if it exists (unless --force is given).
+    if not args.force and os.path.exists(output_path):
+        logging.error("Output file `%s' exists, not overwriting it.", output_path)
+        sys.exit(8)
 
-logging.info("Output written to file: %s", output_path)
-
-# Finally, save the end date for the specified workspace (unless disabled using the --no-update command line option).
-if not args.no_update:
+    # Download and save the generated PDF file.
     try:
-        set_last_end_date(args.workspace, args.end_date)
-    except (OSError, json.JSONDecodeError) as e:
-        logging.error("Cannot store end date: %s", e)
-        sys.exit(7)
+        pdf_data = reports.get_summary(
+                workspace_id=args.workspace,
+                since=args.start_date.astimezone(user_timezone).date().isoformat(),
+                until=args.end_date.astimezone(user_timezone).date().isoformat(),
+                order_field="title",
+                as_pdf=True
+        )
+
+        with open(output_path, "wb") as fh:
+            fh.write(pdf_data)
+    except (toggl.APIError, json.JSONDecodeError, requests.RequestException) as e:
+        logging.error("Cannot retrieve summary report: %s", e)
+        sys.exit(4)
+    except IOError as e:
+        logging.error("Cannot write to output file `%s': %s", output_path, e)
+        sys.exit(5)
+
+    logging.info("Output written to file: %s", output_path)
+
+    # Finally, save the end date for the specified workspace (unless disabled using the --no-update command line
+    # option).
+    if not args.no_update:
+        try:
+            set_last_end_date(args.workspace, args.end_date)
+        except (OSError, json.JSONDecodeError) as e:
+            logging.error("Cannot store end date: %s", e)
+            sys.exit(7)
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
