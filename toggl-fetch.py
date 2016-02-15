@@ -19,6 +19,11 @@ import requests
 import toggl
 
 
+APP_SHORTNAME = "toggl-fetch"
+CONFIG_FILENAME = "config.ini"
+END_DATES_FILENAME = "end_dates.json"
+
+
 def parse_date(string):
     try:
         date = dateutil.parser.parse(string)
@@ -74,8 +79,8 @@ def get_last_end_date(workspace_id):
     # See http://stackoverflow.com/q/1450957
     workspace_id = str(workspace_id)
 
-    for dir in BaseDirectory.load_data_paths("toggl-fetch"):
-        path = os.path.join(dir, "end_dates.json")
+    for dir in BaseDirectory.load_data_paths(APP_SHORTNAME):
+        path = os.path.join(dir, END_DATES_FILENAME)
 
         if not os.path.isfile(path):
             continue
@@ -98,8 +103,8 @@ def set_last_end_date(workspace_id, date):
     workspace_id = str(workspace_id)
 
     path = os.path.join(
-        BaseDirectory.save_data_path("toggl-fetch"),
-        "end_dates.json"
+        BaseDirectory.save_data_path(APP_SHORTNAME),
+        END_DATES_FILENAME
     )
 
     if os.path.exists(path):
@@ -116,11 +121,11 @@ def set_last_end_date(workspace_id, date):
 
 
 def set_argparser_defaults_from_config(argparser):
-    conf_dir = BaseDirectory.load_first_config("toggl-fetch")
+    conf_dir = BaseDirectory.load_first_config(APP_SHORTNAME)
     if conf_dir is None:
         return
 
-    path = os.path.join(conf_dir, "config.ini")
+    path = os.path.join(conf_dir, CONFIG_FILENAME)
     if not os.path.isfile(path):
         return
 
