@@ -68,6 +68,12 @@ def get_argparser():
             default="summary_{end_date:%Y}-{end_date:%m}.pdf",
             help="Output file. Can include {start_date} and {end_date} placeholders. Default: `%(default)s'"
     )
+    argparser.add_argument(
+            "-x",
+            "--no-update",
+            action="store_true",
+            help="Do not update stored end dates."
+    )
 
     return argparser
 
@@ -231,8 +237,9 @@ except IOError as e:
 
 logging.info("Output written to file: %s", output_path)
 
-try:
-    set_last_end_date(args.workspace, args.end_date)
-except (OSError, json.JSONDecodeError) as e:
-    logging.error("Cannot store end date: %s", e)
-    sys.exit(7)
+if not args.no_update:
+    try:
+        set_last_end_date(args.workspace, args.end_date)
+    except (OSError, json.JSONDecodeError) as e:
+        logging.error("Cannot store end date: %s", e)
+        sys.exit(7)
