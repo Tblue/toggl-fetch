@@ -8,6 +8,8 @@ import pprint
 import re
 import sys
 from argparse import ArgumentParser, ArgumentTypeError
+
+import configparser
 from xdg import BaseDirectory
 
 import dateutil.parser
@@ -50,13 +52,11 @@ def get_argparser():
     argparser.add_argument(
             "-t",
             "--api-token",
-            required=True,
             help="Your Toggl API token."
     )
     argparser.add_argument(
             "-w",
             "--workspace",
-            required=True,
             help="Workspace to retrieve data for. Either a workspace ID or a workspace name."
     )
     argparser.add_argument(
@@ -115,8 +115,43 @@ def set_last_end_date(workspace_id, date):
         json.dump(data, fh)
 
 
+def set_argparser_defaults_from_config(argparser):
+    conf_dir = BaseDirectory.load_first_config("toggl-fetch")
+    if conf_dir is None:
+        return
+
+    path = os.path.join(conf_dir, "config.ini")
+    if not os.path.isfile(path):
+        return
+
+    config = configparser.ConfigParser(interpolation=None)
+    config.read_dict({"options": {}})
+    config.read(path)
+
+    argparser.set_defaults(**dict(config.items("options")))
+
+
+def check_argparser_arguments(args):
+    if args.api_token is None:
+        logging.error("Please specify an API token, either in the configuration file or on the command line.")
+        sys.exit(1)
+
+    if args.workspace is None:
+        logging.error("Please specify a workspace, either in the configuration file or on the command line.")
+        sys.exit(1)
+
+
 logging.basicConfig(level=logging.INFO)
-args = get_argparser().parse_args()
+argparser = get_argparser()
+
+try:
+    set_argparser_defaults_from_config(argparser)
+except (configparser.Error, OSError) as e:
+    logging.error("Could not load configuration file: %s", e)
+    sys.exit(9)
+
+args = argparser.parse_args()
+check_argparser_arguments(args)
 
 api = toggl.Toggl(args.api_token)
 reports = toggl.TogglReports(args.api_token)
