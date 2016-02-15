@@ -42,8 +42,8 @@ def get_argparser():
             "-s",
             "--start-date",
             type=parse_date,
-            help="First day to include in report, inclusive. Defaults to 4 weeks ago (or the last time this program "
-                 "was used plus one day, if possible)."
+            help="First day to include in report, inclusive. Defaults to 4 weeks ago (or the last used --end-date "
+                 "for the given workspace plus one day, if that information is available)."
     )
     argparser.add_argument(
             "-e",
