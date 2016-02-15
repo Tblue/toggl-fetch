@@ -69,6 +69,12 @@ def get_argparser():
             help="Output file. Can include {start_date} and {end_date} placeholders. Default: `%(default)s'"
     )
     argparser.add_argument(
+            "-f",
+            "--force",
+            action="store_true",
+            help="Overwrite the output file if it exists."
+    )
+    argparser.add_argument(
             "-x",
             "--no-update",
             action="store_true",
@@ -235,7 +241,8 @@ output_path = args.output.format(
         end_date=args.end_date
 )
 
-if os.path.exists(output_path):
+# Refuse to overwrite the output file if it exists (unless --force is given).
+if not args.force and os.path.exists(output_path):
     logging.error("Output file `%s' exists, not overwriting it.", output_path)
     sys.exit(8)
 
