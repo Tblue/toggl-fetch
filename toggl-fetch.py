@@ -152,6 +152,7 @@ def set_argparser_defaults_from_config(argparser):
         if value is None:
             value = True
 
+        logging.debug("Setting default from config file: %s = %s", key, value)
         defaults[key] = value
 
     argparser.set_defaults(**defaults)
@@ -175,12 +176,22 @@ def determine_end_date(workspace_id):
 
     if start_date is None:
         # No last end date stored, use default of "4 weeks ago":
+        logging.debug("No previously used end date for workspace available")
         start_date = datetime.datetime.now(dateutil.tz.gettz()) - datetime.timedelta(weeks=4)
     else:
         # We know the last used end date; add one day to that date and use the result as the start date.
+        logging.debug("Successfully read previously used end date for workspace: %s", start_date)
         start_date += datetime.timedelta(1)
 
+    logging.debug("Determined start date for workspace: %s", start_date)
     return start_date
+
+
+def init_logging():
+    logging.basicConfig(level=os.environ.get("TOGGL_FETCH_LOGLVL", "INFO").upper())
+
+    if logging.root.getEffectiveLevel() == logging.INFO:
+        logging.getLogger("requests.packages.urllib3").setLevel(logging.WARNING)
 
 
 # Return codes:
@@ -192,7 +203,7 @@ def determine_end_date(workspace_id):
 #  5: Cannot write output file
 def main():
     # Set up logging:
-    logging.basicConfig(level=logging.INFO)
+    init_logging()
 
     # Now prepare to parse the config file and the command line arguments.
     argparser = get_argparser()
@@ -231,7 +242,7 @@ def main():
             logging.error("Cannot find a workspace with that name: %s", args.workspace)
             return 1
 
-        logging.info("Resolved workspace name `%s' to ID %d.", args.workspace, resolved_workspace["id"])
+        logging.debug("Resolved workspace name `%s' to ID %d.", args.workspace, resolved_workspace["id"])
         args.workspace = resolved_workspace["id"]
 
     # Determine the timezone of the Toggl user
@@ -240,7 +251,7 @@ def main():
         logging.error("Unknown timezone: %s", user_info["data"]["timezone"])
         return 4
 
-    logging.info("User timezone: %s", user_timezone)
+    logging.debug("User timezone: %s", user_timezone)
 
     # If no start date was specified, then try to determine a suitable default automatically.
     if args.start_date is None:
@@ -288,11 +299,15 @@ def main():
     # Finally, save the end date for the specified workspace (unless disabled using the --no-update command line
     # option).
     if not args.no_update:
+        logging.debug("Storing end date for workspace")
+
         try:
             set_last_end_date(args.workspace, args.end_date)
         except (OSError, json.JSONDecodeError) as e:
             logging.error("Cannot store end date: %s", e)
             return 4
+    else:
+        logging.debug("NOT storing end date for workspace")
 
     return 0
 
