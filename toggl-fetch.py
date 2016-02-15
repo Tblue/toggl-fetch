@@ -133,11 +133,21 @@ def set_argparser_defaults_from_config(argparser):
     if not os.path.isfile(path):
         return
 
-    config = configparser.ConfigParser(interpolation=None)
+    config = configparser.ConfigParser(
+            allow_no_value=True,
+            interpolation=None
+    )
     config.read_dict({"options": {}})
     config.read(path)
 
-    argparser.set_defaults(**dict(config.items("options")))
+    defaults = {}
+    for key, value in config.items("options"):
+        if value is None:
+            value = True
+
+        defaults[key] = value
+
+    argparser.set_defaults(**defaults)
 
 
 def check_argparser_arguments(args):
