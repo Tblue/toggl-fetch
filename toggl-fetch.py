@@ -160,11 +160,13 @@ def set_argparser_defaults_from_config(argparser):
 def check_argparser_arguments(args):
     if args.api_token is None:
         logging.error("Please specify an API token, either in the configuration file or on the command line.")
-        sys.exit(1)
+        return False
 
     if args.workspace is None:
         logging.error("Please specify a workspace, either in the configuration file or on the command line.")
-        sys.exit(1)
+        return False
+
+    return True
 
 
 def determine_end_date(workspace_id):
@@ -181,6 +183,13 @@ def determine_end_date(workspace_id):
     return start_date
 
 
+# Return codes:
+#  0: OK, no errors
+#  1: Invalid command line arguments (invalid syntax, no such workspace, ...)
+#  2: Could not load configuration file
+#  3: Toggl API error
+#  4: Internal error (e. g. got unknown timezone from Toggl API, cannot load/save data file, ...)
+#  5: Cannot write output file
 def main():
     # Set up logging:
     logging.basicConfig(level=logging.INFO)
@@ -193,14 +202,15 @@ def main():
         set_argparser_defaults_from_config(argparser)
     except (configparser.Error, OSError) as e:
         logging.error("Could not load configuration file: %s", e)
-        sys.exit(9)
+        return 2
 
     # Now parse the command line arguments. These will override defaults set in the config file.
     args = argparser.parse_args()
 
     # Certain command line arguments are only required if they are not already specified in the config file.
     # Check for those.
-    check_argparser_arguments(args)
+    if not check_argparser_arguments(args):
+        return 1
 
     # Set up Toggl.com API wrappers
     api = toggl.Toggl(args.api_token)
@@ -211,7 +221,7 @@ def main():
         user_info = api.get_user_info()
     except (toggl.APIError, json.JSONDecodeError, requests.RequestException) as e:
         logging.error("Cannot retrieve user information: %s", e)
-        sys.exit(3)
+        return 3
 
     # If the user specified a workspace name and not an ID, then try to find a workspace with that name and use its ID.
     if not re.fullmatch(r"[0-9]+", args.workspace):
@@ -219,7 +229,7 @@ def main():
 
         if resolved_workspace is None:
             logging.error("Cannot find a workspace with that name: %s", args.workspace)
-            sys.exit(3)
+            return 1
 
         logging.info("Resolved workspace name `%s' to ID %d.", args.workspace, resolved_workspace["id"])
         args.workspace = resolved_workspace["id"]
@@ -228,7 +238,7 @@ def main():
     user_timezone = dateutil.tz.gettz(user_info["data"]["timezone"])
     if user_timezone is None:
         logging.error("Unknown timezone: %s", user_info["data"]["timezone"])
-        sys.exit(3)
+        return 4
 
     logging.info("User timezone: %s", user_timezone)
 
@@ -238,7 +248,7 @@ def main():
             args.start_date = determine_end_date(args.workspace)
         except (OSError, json.JSONDecodeError, ValueError, OverflowError) as e:
             logging.error("Cannot determine start date for workspace: %s", e)
-            sys.exit(6)
+            return 4
 
     logging.info("Start date: %s", args.start_date)
     logging.info("End date: %s", args.end_date)
@@ -252,7 +262,7 @@ def main():
     # Refuse to overwrite the output file if it exists (unless --force is given).
     if not args.force and os.path.exists(output_path):
         logging.error("Output file `%s' exists, not overwriting it.", output_path)
-        sys.exit(8)
+        return 5
 
     # Download and save the generated PDF file.
     try:
@@ -268,10 +278,10 @@ def main():
             fh.write(pdf_data)
     except (toggl.APIError, json.JSONDecodeError, requests.RequestException) as e:
         logging.error("Cannot retrieve summary report: %s", e)
-        sys.exit(4)
+        return 3
     except IOError as e:
         logging.error("Cannot write to output file `%s': %s", output_path, e)
-        sys.exit(5)
+        return 5
 
     logging.info("Output written to file: %s", output_path)
 
@@ -282,7 +292,7 @@ def main():
             set_last_end_date(args.workspace, args.end_date)
         except (OSError, json.JSONDecodeError) as e:
             logging.error("Cannot store end date: %s", e)
-            sys.exit(7)
+            return 4
 
     return 0
 
