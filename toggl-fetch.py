@@ -180,6 +180,8 @@ if args.start_date is None:
     if args.start_date is None:
         # No last end date stored, use default of "4 weeks ago":
         args.start_date = datetime.datetime.now(dateutil.tz.gettz()) - datetime.timedelta(weeks=4)
+    else:
+        args.start_date = args.start_date + datetime.timedelta(1)
 
 logging.info("Start date: %s", args.start_date)
 logging.info("End date: %s", args.end_date)
@@ -200,6 +202,7 @@ try:
                         workspace_id=args.workspace,
                         since=args.start_date.astimezone(datetime.timezone.utc).date().isoformat(),
                         until=args.end_date.astimezone(datetime.timezone.utc).date().isoformat(),
+                        order_field="title",
                         as_pdf=True
                 )
         )
