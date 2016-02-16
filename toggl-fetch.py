@@ -159,15 +159,17 @@ def set_argparser_defaults_from_config(argparser):
 
 
 def check_argparser_arguments(args):
+    result = True
+
     if args.api_token is None:
         logging.error("Please specify an API token, either in the configuration file or on the command line.")
-        return False
+        result = False
 
     if args.workspace is None:
         logging.error("Please specify a workspace, either in the configuration file or on the command line.")
-        return False
+        result = False
 
-    return True
+    return result
 
 
 def determine_end_date(workspace_id):
