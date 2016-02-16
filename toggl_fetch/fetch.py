@@ -13,6 +13,7 @@ import requests
 from xdg import BaseDirectory
 
 from . import api
+from . import app_version
 
 
 APP_SHORTNAME = "toggl-fetch"
@@ -38,6 +39,12 @@ def get_argparser():
             description="Fetch summary reports from Toggl.com, with automatic date range calculation"
     )
 
+    argparser.add_argument(
+            "--version",
+            action="version",
+            version="%%(prog)s %s" % app_version.version,
+            help="Display the program version and exit."
+    )
     argparser.add_argument(
             "-s",
             "--start-date",

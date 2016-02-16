@@ -4,16 +4,18 @@ import os
 from setuptools import setup
 
 
+MY_DIR = os.path.dirname(os.path.realpath(__file__))
+
+
 setup(
     name="toggl-fetch",
-    use_scm_version=True,
+    use_scm_version={
+        "write_to": os.path.join(MY_DIR, "toggl_fetch", "app_version.py")
+    },
     description="Fetch summary reports from Toggl.com, with automatic date range calculation.",
     # Read the long description from our README.rst file, as UTF-8.
     long_description=codecs.open(
-            os.path.join(
-                os.path.dirname(os.path.realpath(__file__)),
-                "README.rst"
-            ),
+            os.path.join(MY_DIR, "README.rst"),
             "rb",
             "utf-8"
         ).read(),
