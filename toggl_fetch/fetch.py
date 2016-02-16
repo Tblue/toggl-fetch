@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import configparser
 import datetime
 import json
@@ -9,11 +7,12 @@ import re
 import sys
 from argparse import ArgumentParser, ArgumentTypeError
 
-from . import api
 import dateutil.parser
 import dateutil.tz
 import requests
 from xdg import BaseDirectory
+
+from . import api
 
 
 APP_SHORTNAME = "toggl-fetch"

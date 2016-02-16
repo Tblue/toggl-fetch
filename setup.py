@@ -1,6 +1,8 @@
 import codecs
 import os
+
 from setuptools import setup
+
 
 setup(
     name="toggl-fetch",
