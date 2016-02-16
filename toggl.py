@@ -7,7 +7,7 @@ import requests
 import requests.exceptions
 
 
-USER_AGENT = "toggl-fetch-api-client/1.0 (tilman+toggldev@ax86.net)"
+USER_AGENT = "toggl-fetch (tilman+toggldev@ax86.net)"
 
 _logger = logging.getLogger(__name__)
 
