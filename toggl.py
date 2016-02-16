@@ -10,6 +10,29 @@ import requests.exceptions
 USER_AGENT = "toggl-fetch (tilman+toggldev@ax86.net)"
 
 _logger = logging.getLogger(__name__)
+_sessions = {}
+
+
+def _get_session(auth):
+    if auth not in _sessions:
+        _logger.debug("Creating new session for auth %s", auth)
+
+        _sessions[auth] = requests.Session()
+        _sessions[auth].auth = auth
+
+        # Set the user agent
+        orig_user_agent = _sessions[auth].headers.get("user-agent")
+        new_user_agent = USER_AGENT
+
+        if orig_user_agent:
+            new_user_agent += " " + orig_user_agent
+
+        _sessions[auth].headers["user-agent"] = new_user_agent
+        _sessions[auth].params["user_agent"] = USER_AGENT
+    else:
+        _logger.debug("Reusing existing session for auth %s", auth)
+
+    return _sessions[auth]
 
 
 class APIError(Exception):
@@ -31,19 +54,7 @@ class RateLimitingError(APIError):
 class _APIBase(metaclass=ABCMeta):
     def __init__(self, api_base_url, api_token):
         self._api_base_url = api_base_url
-
-        self._session = requests.Session()
-        self._session.auth = (api_token, "api_token")
-
-        # Set the user agent
-        orig_user_agent = self._session.headers.get("user-agent")
-        new_user_agent = USER_AGENT
-
-        if orig_user_agent:
-            new_user_agent += " " + orig_user_agent
-
-        self._session.headers["user-agent"] = new_user_agent
-        self._session.params["user_agent"] = USER_AGENT
+        self._session = _get_session((api_token, "api_token"))
 
     def _do_get(self, path, attempts=3, decode_json=True, **params):
         for attempt in range(1, attempts + 1):
@@ -99,7 +110,7 @@ class Toggl(_APIBase):
 
 
 class TogglReports(_APIBase):
-    API_BASE_URL = "https://toggl.com/reports/api/v2/"
+    API_BASE_URL = "https://www.toggl.com/reports/api/v2/"
 
     def __init__(self, *args, **kwargs):
         super().__init__(self.API_BASE_URL, *args, **kwargs)
