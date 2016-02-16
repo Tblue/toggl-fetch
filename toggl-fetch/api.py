@@ -7,7 +7,7 @@ import requests
 import requests.exceptions
 
 
-USER_AGENT = "toggl-fetch (tilman+toggldev@ax86.net)"
+USER_AGENT = "toggl-fetch (https://github.com/Tblue/toggl-fetch)"
 
 _logger = logging.getLogger(__name__)
 _sessions = {}
@@ -29,6 +29,8 @@ def _get_session(auth):
 
         _sessions[auth].headers["user-agent"] = new_user_agent
         _sessions[auth].params["user_agent"] = USER_AGENT
+
+        _logger.debug("Final user agent: %s", _sessions[auth].headers["user-agent"])
     else:
         _logger.debug("Reusing existing session for auth %s", auth)
 
