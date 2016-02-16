@@ -35,7 +35,9 @@ def parse_date(string):
 
 
 def get_argparser():
-    argparser = ArgumentParser(description="retrieve Toggl reports")
+    argparser = ArgumentParser(
+            description="Fetch summary reports from Toggl.com, with automatic date range calculation"
+    )
 
     argparser.add_argument(
             "-s",
