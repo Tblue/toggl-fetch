@@ -27,7 +27,7 @@ setup(
         ]
     },
     url="https://github.com/Tblue/toggl-fetch",
-    py_modules=["toggl_fetch"],
+    packages=["toggl_fetch"],
     install_requires=[
         "requests ~= 2.2",
         "python-dateutil ~= 2.0",
