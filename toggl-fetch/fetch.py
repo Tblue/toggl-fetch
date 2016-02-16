@@ -9,12 +9,11 @@ import re
 import sys
 from argparse import ArgumentParser, ArgumentTypeError
 
+from . import api
 import dateutil.parser
 import dateutil.tz
 import requests
 from xdg import BaseDirectory
-
-import toggl
 
 
 APP_SHORTNAME = "toggl-fetch"
@@ -226,19 +225,19 @@ def main():
         return 1
 
     # Set up Toggl.com API wrappers
-    api = toggl.Toggl(args.api_token)
-    reports = toggl.TogglReports(args.api_token)
+    toggl_api = api.Toggl(args.api_token)
+    toggl_reports = api.TogglReports(args.api_token)
 
     # We need to retrieve the user info from Toggl to determine the correct timezone for the date parameters.
     try:
-        user_info = api.get_user_info()
-    except (toggl.APIError, json.JSONDecodeError, requests.RequestException) as e:
+        user_info = toggl_api.get_user_info()
+    except (api.APIError, json.JSONDecodeError, requests.RequestException) as e:
         logging.error("Cannot retrieve user information: %s", e)
         return 3
 
     # If the user specified a workspace name and not an ID, then try to find a workspace with that name and use its ID.
     if not re.fullmatch(r"[0-9]+", args.workspace):
-        resolved_workspace = api.get_workspace_by_name_from_user_info(user_info, args.workspace)
+        resolved_workspace = toggl_api.get_workspace_by_name_from_user_info(user_info, args.workspace)
 
         if resolved_workspace is None:
             logging.error("Cannot find a workspace with that name: %s", args.workspace)
@@ -279,7 +278,7 @@ def main():
 
     # Download and save the generated PDF file.
     try:
-        pdf_data = reports.get_summary(
+        pdf_data = toggl_reports.get_summary(
                 workspace_id=args.workspace,
                 since=args.start_date.astimezone(user_timezone).date().isoformat(),
                 until=args.end_date.astimezone(user_timezone).date().isoformat(),
@@ -289,7 +288,7 @@ def main():
 
         with open(output_path, "wb") as fh:
             fh.write(pdf_data)
-    except (toggl.APIError, json.JSONDecodeError, requests.RequestException) as e:
+    except (api.APIError, json.JSONDecodeError, requests.RequestException) as e:
         logging.error("Cannot retrieve summary report: %s", e)
         return 3
     except IOError as e:
