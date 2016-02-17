@@ -24,7 +24,6 @@ import json
 import logging
 import os.path
 import re
-import sys
 from argparse import ArgumentParser, ArgumentTypeError
 
 import dateutil.parser
@@ -36,18 +35,35 @@ from . import api
 from . import app_version
 
 
+# Short name of this application. Used in file systems paths for configuration file loading etc. (paths conform to the
+# XDG base directory spec).
 APP_SHORTNAME = "toggl-fetch"
+
+# Name of configuration file in XDG config directory for this application.
 CONFIG_FILENAME = "config.ini"
+
+# Name of JSON file used to store last used "end dates" for a workspace (i. e. the last used end date of a date range).
+# This file is located in the XDG data directory for this application.
 END_DATES_FILENAME = "end_dates.json"
 
 
 def parse_date(string):
+    """Type handler for argparse: Parses a date from a string using :func:`dateutil.parser.parse`.
+
+    If no timezone is specified in the input string, then the current system timezone is assumed.
+
+    :param string: Date to parse
+    :type string: str
+    :return: ``datetime`` object representing the parsed date (timezone-aware).
+    :rtype: datetime.datetime
+    :raises argparse.ArgumentTypeError: If the input string does not contain a valid date.
+    """
     try:
         date = dateutil.parser.parse(string)
     except (ValueError, OverflowError) as e:
         raise ArgumentTypeError("Invalid date specified: " + str(e)) from e
 
-    # If no time zone was given, assume the current user's timezone.
+    # If no time zone was given, assume the current system timezone.
     if date.tzinfo is None:
         date = date.replace(tzinfo=dateutil.tz.gettz())
 
@@ -55,6 +71,11 @@ def parse_date(string):
 
 
 def get_argparser():
+    """Get the argument parser for this application.
+
+    :return: Argument parser for this application.
+    :rtype: argparse.ArgumentParser
+    """
     argparser = ArgumentParser(
             description="Fetch summary reports from Toggl.com, with automatic date range calculation"
     )
@@ -113,6 +134,17 @@ def get_argparser():
 
 # XXX: Locking?
 def get_last_end_date(workspace_id):
+    """Retrieve the last "end date" (for report queries) for a workspace.
+
+    :param workspace_id: ID of workspace to retrieve last end date for.
+    :type workspace_id: str | int
+    :return: Last used end date for the workspace or ``None`` if no end date has been stored yet.
+    :rtype: None | datetime.datetime
+    :raises OSError: If a data file exists, but cannot be read.
+    :raises json.JSONDecodeError: If the data file is corrupt (contains invalid JSON data).
+    :raises ValueError: If the data file is corrupt (contains invalid date which cannot be parsed).
+    :raises OverflowError: If the data file is corrupt (contains invalid date which cannot be parsed).
+    """
     # See http://stackoverflow.com/q/1450957
     workspace_id = str(workspace_id)
 
@@ -136,6 +168,18 @@ def get_last_end_date(workspace_id):
 
 # XXX: Locking?
 def set_last_end_date(workspace_id, date):
+    """Set the last "end date" for a workspace (used in report queries).
+
+    :param workspace_id: ID of workspace to set the last used end date for.
+    :type workspace_id: int | str
+    :param date: End date to store
+    :type date: datetime.datetime
+    :return: Nothing.
+    :rtype: None
+    :raises OSError: If the data file cannot be saved (or existing data cannot be loaded in order to preserve it).
+    :raises json.JSONDecodeError: If existing data cannot be loaded (in order to preserve it) because the data file
+        is corrupt.
+    """
     # See http://stackoverflow.com/q/1450957
     workspace_id = str(workspace_id)
 
@@ -159,6 +203,27 @@ def set_last_end_date(workspace_id, date):
 
 
 def set_argparser_defaults_from_config(argparser):
+    """Set defaults for the argument parser by reading the configuration file, if it exists.
+
+    The configuration file should reside in the XDG data directory for this application
+    (see :const:`APP_SHORTNAME`) and have the filename defined by :const:`CONFIG_FILENAME`.
+
+    This is a standard INI file.
+
+    All command line parameters can be set in the config file in the ``[options]`` section by taking the "long"
+    parameter name and replacing all dashes with underscores (e. g. ``api_token = foobar``).
+
+    Command line parameters without a value can be included in the config file by simply specifying the
+    long parameter name without a value; e. g. adding a line containing just ``force`` will make the program
+    behave as if the ``--force`` option was specified.
+
+    :param argparser: Argument parser object to populate with defaults obtained from the configuration file.
+    :type argparser: argparse.ArgumentParser
+    :return: Nothing
+    :rtype: None
+    :raises configparser.Error: Config file has invalid syntax.
+    :raises OSError: Config file exists, but cannot be opened (or read from).
+    """
     conf_dir = BaseDirectory.load_first_config(APP_SHORTNAME)
     if conf_dir is None:
         return
@@ -177,6 +242,7 @@ def set_argparser_defaults_from_config(argparser):
     defaults = {}
     for key, value in config.items("options"):
         if value is None:
+            # Specifying a parameter name without a value sets its value to True.
             value = True
 
         logging.debug("Setting default from config file: %s = %s", key, value)
@@ -186,6 +252,20 @@ def set_argparser_defaults_from_config(argparser):
 
 
 def check_argparser_arguments(args):
+    """Ensure that all necessary program arguments are given either in the config file
+    (see :func:`set_argparser_defaults_from_config`) or on the command line.
+
+    The following arguments need to be given either in the config file or on the command line:
+
+    - ``--api-token`` (``api_token``)
+    - ``--workspace`` (``workspace``)
+
+    :param args: Parsed command line arguments, i. e. the result returned by :meth:`argparse.ArgumentParser.parse_args`.
+    :type args: argparse.Namespace
+    :return: ``True`` if all necessary arguments are given, ``False`` otherwise. In the latter case, missing arguments
+        are logged with level ERROR.
+    :rtype: bool
+    """
     result = True
 
     if args.api_token is None:
@@ -200,6 +280,21 @@ def check_argparser_arguments(args):
 
 
 def determine_end_date(workspace_id):
+    """Automatically determine an end date for a workspace, intended to be used as the end of a date range (used in
+    report queries for that workspace).
+
+    If possible, this returns the last used "end date" for this workspace plus one day. If that information is not
+    available, then the date "today - 4 weeks" is returned.
+
+    :param workspace_id: ID of workspace to determine an end date for.
+    :type workspace_id: str | int
+    :return: End date for this workspace.
+    :rtype: datetime.datetime
+    :raises OSError: If a data file exists, but cannot be read.
+    :raises json.JSONDecodeError: If the data file is corrupt (contains invalid JSON data).
+    :raises ValueError: If the data file is corrupt (contains invalid date which cannot be parsed).
+    :raises OverflowError: If the data file is corrupt (contains invalid date which cannot be parsed).
+    """
     # Try to retrieve the last used end date for the workspace:
     start_date = get_last_end_date(workspace_id)
 
@@ -217,6 +312,20 @@ def determine_end_date(workspace_id):
 
 
 def init_logging():
+    """Initialize the logging system.
+
+    This reads the environment variable ``TOGGL_FETCH_LOGLVL`` (which defaults to ``INFO``), expecting one of the
+    named log levels described in https://docs.python.org/3/library/logging.html#logging-levels. This level is then used
+    as the the log level threshold for the root logger.
+
+    Note that in order to keep the console output clean, the log level threshold for the logger used by the
+    :mod:`requests.packages.urllib3` module is set to WARNING if ``TOGGL_FETCH_LOGLVL`` is set to INFO. All other
+    values for the ``TOGGL_FETCH_LOGLVL`` environment variable are propagated to the
+    :mod:`requests.packages.urllib3` logger.
+
+    :return: Nothing.
+    :rtype: None.
+    """
     logging.basicConfig(level=os.environ.get("TOGGL_FETCH_LOGLVL", "INFO").upper())
 
     if logging.root.getEffectiveLevel() == logging.INFO:
@@ -231,6 +340,10 @@ def init_logging():
 #  4: Internal error (e. g. got unknown timezone from Toggl API, cannot load/save data file, ...)
 #  5: Cannot write output file
 def main():
+    """Main method for this application.
+
+    Provides the console-based interface to toggl-fetch.
+    """
     # Set up logging:
     init_logging()
 
@@ -339,7 +452,3 @@ def main():
         logging.debug("NOT storing end date for workspace")
 
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
