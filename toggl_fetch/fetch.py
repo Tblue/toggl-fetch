@@ -81,6 +81,7 @@ def get_argparser():
     )
 
     argparser.add_argument(
+            "-V",
             "--version",
             action="version",
             version="%%(prog)s %s" % app_version.version,
