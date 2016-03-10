@@ -333,17 +333,22 @@ def init_logging():
         logging.getLogger("requests.packages.urllib3").setLevel(logging.WARNING)
 
 
-# Return codes:
-#  0: OK, no errors
-#  1: Invalid command line arguments (invalid syntax, no such workspace, ...)
-#  2: Could not load configuration file
-#  3: Toggl API error
-#  4: Internal error (e. g. got unknown timezone from Toggl API, cannot load/save data file, ...)
-#  5: Cannot write output file
 def main():
     """Main method for this application.
 
     Provides the console-based interface to toggl-fetch.
+
+    See :func:`get_argparser` for a list of accepted command line arguments.
+
+    :return: A status code:
+
+        * 0: OK, no errors
+        * 1: Invalid command line arguments (invalid syntax, no such workspace, ...)
+        * 2: Could not load configuration file
+        * 3: Toggl API error
+        * 4: Internal error (e. g. got unknown timezone from Toggl API, cannot load/save data file, ...)
+        * 5: Cannot write output file
+    :rtype: int
     """
     # Set up logging:
     init_logging()
