@@ -26,9 +26,11 @@ from abc import *
 import requests
 import requests.exceptions
 
+from . import app_version
+
 
 # User agent to use for API requests
-USER_AGENT = "toggl-fetch (https://github.com/Tblue/toggl-fetch)"
+USER_AGENT = "toggl-fetch/%s (+https://github.com/Tblue/toggl-fetch)" % app_version.version
 
 # The logger used by this module
 _logger = logging.getLogger(__name__)
