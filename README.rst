@@ -152,6 +152,13 @@ Lines starting with optional whitespace followed by either ``#`` or ``;`` are tr
 Version history
 ---------------
 
+Version 1.0.1
++++++++++++++
+
+- Fix: Add forgotten short option ``-V`` as a counterpart to ``--version``.
+- Fix: Document return codes for the ``main()`` function.
+- Fix: ``User-Agent`` header: Add our version number and correctly format our URL.
+
 Version 1.0.0
 +++++++++++++
 
