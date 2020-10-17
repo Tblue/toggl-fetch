@@ -31,7 +31,7 @@ setup(
     install_requires=[
         "requests ~= 2.2",
         "python-dateutil ~= 2.0",
-        "pyxdg ~= 0.20"
+        "pyxdg ~= 0.26"
     ],
     setup_requires=["setuptools_scm ~= 1.10"],
     classifiers=[
